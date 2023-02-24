@@ -1,12 +1,23 @@
 const express = require("express"); // 모듈 load
 const path = require('path');
 const morgan = require('morgan');
+const nunjucks = require('nunjucks');
 const { sequelize } = require('./models'); // index.js에 있는 db.sequelize 객체 모듈을 구조분해로 불러온다.
+
+// 라우터 가져오기
+const indexRouter = require('./routes/index');
+const usersRouter = require('./routes/users');
+const commentsRouter = require('./routes/comments');
 const app = express(); // express를 사용하여 app 생성
 
-// PUG 설정
+
 app.set('views', path.join(__dirname, 'views'));
-app.set('view engine', 'pug');
+app.set('view engine', 'html');
+nunjucks.configure('views', {
+   express: app,
+   watch: true,
+});
+
 
 sequelize.sync({ force: false })
    .then(() => {
@@ -17,31 +28,33 @@ sequelize.sync({ force: false })
 
 app.use(morgan('dev')); // 로그
 app.use(express.json()); // json 파싱
+app.use(express.static(path.join(__dirname, 'public'))); // 요청시 기본 경로 설정
 app.use(express.urlencoded({ extended: false })); // uri 파싱
+
+// 라우터 연결하기
+app.use('/', indexRouter);
+app.use('/users', usersRouter);
+app.use('/comments', commentsRouter);
 
 // 일부러 에러 발생시키기 TEST용
 app.use((req, res, next) => {
     const error = new Error(`${req.method} ${req.url} 라우터가 없습니다.`);
     error.status = 404;
     next(error);
- });
+});
  
- // 에러 처리 미들웨어
- app.use((err, req, res, next) => {
-    // 템플릿 변수 설정
-    res.locals.message = err.message;
-    res.locals.error = process.env.NODE_ENV !== 'production' ? err : {}; // 배포용이 아니라면 err설정 아니면 빈 객체
+// 에러 처리 미들웨어
+app.use((err, req, res, next) => {
+   // 템플릿 변수 설정
+   res.locals.message = err.message;
+   res.locals.error = process.env.NODE_ENV !== 'production' ? err : {}; // 배포용이 아니라면 err설정 아니면 빈 객체
+
+   res.status(err.status || 500);
+   res.render('error'); // 템플릿 엔진을 렌더링 하여 응답
+});
+
  
-    res.status(err.status || 500);
-    res.render('error'); // 템플릿 엔진을 렌더링 하여 응답
- });
- 
- // 서버 실행
- app.listen(4000, () => {
-    console.log(4000, '번 포트에서 대기 중');
- });
- 
-// 라우팅
-// app.get("/", (req, res) => {
-//   res.send("Hello World!");
-// });
+// 서버 실행
+app.listen(4000, () => {
+   console.log(4000, '번 포트에서 대기 중');
+});
